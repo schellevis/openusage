@@ -1,6 +1,6 @@
 # Web interface
 
-OpenUsage now has a small web prep layer.
+OpenUsage now has a small web preparation layer.
 
 ## What works
 

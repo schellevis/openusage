@@ -11,13 +11,15 @@ type UsageSnapshot = {
   fetchedAt: string
 }
 
+const STATUS_LABEL = "Status"
+
 function buildPlaceholderOutput(plugin: PluginMeta, text: string): PluginOutput {
   return {
     providerId: plugin.id,
     displayName: plugin.name,
     plan: undefined,
     iconUrl: plugin.iconUrl,
-    lines: [{ type: "badge", label: "Status", text }],
+    lines: [{ type: "badge", label: STATUS_LABEL, text }],
   }
 }
 
