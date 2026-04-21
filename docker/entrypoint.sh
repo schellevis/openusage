@@ -1,8 +1,7 @@
 #!/bin/sh
 set -eu
 
-cat > /usr/share/nginx/html/runtime-config.js <<EOF
-window.__OPENUSAGE_CONFIG__ = {
-  apiBaseUrl: "${OPENUSAGE_API_BASE_URL}"
-}
-EOF
+escaped_api_base_url=$(printf '%s' "${OPENUSAGE_API_BASE_URL}" | sed 's/[\/&|]/\\&/g')
+sed "s|\${OPENUSAGE_API_BASE_URL}|${escaped_api_base_url}|g" \
+  /etc/openusage/runtime-config.template.js \
+  > /usr/share/nginx/html/runtime-config.js
