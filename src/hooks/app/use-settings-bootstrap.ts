@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react"
-import { invoke, isTauri } from "@tauri-apps/api/core"
+import { isTauri } from "@tauri-apps/api/core"
 import {
   disable as disableAutostart,
   enable as enableAutostart,
@@ -35,6 +35,7 @@ import {
   type ResetTimerDisplayMode,
   type ThemeMode,
 } from "@/lib/settings"
+import { listAvailablePlugins } from "@/lib/runtime-client"
 
 type UseSettingsBootstrapArgs = {
   setPluginSettings: (value: PluginSettings | null) => void
@@ -83,7 +84,7 @@ export function useSettingsBootstrap({
 
     const loadSettings = async () => {
       try {
-        const availablePlugins = await invoke<PluginMeta[]>("list_plugins")
+        const availablePlugins = await listAvailablePlugins()
         if (!isMounted) return
         setPluginsMeta(availablePlugins)
 

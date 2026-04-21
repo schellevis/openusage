@@ -33,6 +33,7 @@ const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
 const GLOBAL_SHORTCUT_KEY = "globalShortcut";
 const START_ON_LOGIN_KEY = "startOnLogin";
+const WEB_SETTINGS_STORAGE_KEY = "openusage.web.settings";
 
 export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
@@ -78,6 +79,76 @@ export const RESET_TIMER_DISPLAY_OPTIONS: { value: ResetTimerDisplayMode; label:
 
 const store = new LazyStore(SETTINGS_STORE_PATH);
 
+function canUseWebSettingsFallback(): boolean {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function readWebSettingsState(): Record<string, unknown> {
+  if (!canUseWebSettingsFallback()) return {};
+  const raw = window.localStorage.getItem(WEB_SETTINGS_STORAGE_KEY);
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Ignore corrupt web cache and rebuild on next save.
+  }
+
+  return {};
+}
+
+function writeWebSettingsState(next: Record<string, unknown>): void {
+  if (!canUseWebSettingsFallback()) return;
+  window.localStorage.setItem(WEB_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+}
+
+async function storeGet<T>(key: string): Promise<T | undefined> {
+  try {
+    return await store.get<T>(key);
+  } catch (error) {
+    if (!canUseWebSettingsFallback()) throw error;
+    return readWebSettingsState()[key] as T | undefined;
+  }
+}
+
+async function storeSet(key: string, value: unknown): Promise<void> {
+  try {
+    await store.set(key, value);
+  } catch (error) {
+    if (!canUseWebSettingsFallback()) throw error;
+    const next = readWebSettingsState();
+    next[key] = value;
+    writeWebSettingsState(next);
+  }
+}
+
+async function storeSave(): Promise<void> {
+  try {
+    await store.save();
+  } catch (error) {
+    if (!canUseWebSettingsFallback()) throw error;
+  }
+}
+
+async function storeDelete(key: string): Promise<void> {
+  const maybeDelete = (store as unknown as LegacyStoreWithDelete).delete;
+  try {
+    if (typeof maybeDelete === "function") {
+      await maybeDelete.call(store, key);
+      return;
+    }
+    await store.set(key, null);
+  } catch (error) {
+    if (!canUseWebSettingsFallback()) throw error;
+    const next = readWebSettingsState();
+    delete next[key];
+    writeWebSettingsState(next);
+  }
+}
+
 const DEFAULT_ENABLED_PLUGINS = new Set(["claude", "codex", "cursor"]);
 
 export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
@@ -86,7 +157,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
 };
 
 export async function loadPluginSettings(): Promise<PluginSettings> {
-  const stored = await store.get<PluginSettings>(PLUGIN_SETTINGS_KEY);
+  const stored = await storeGet<PluginSettings>(PLUGIN_SETTINGS_KEY);
   if (!stored) return { ...DEFAULT_PLUGIN_SETTINGS };
   return {
     order: Array.isArray(stored.order) ? stored.order : [],
@@ -95,8 +166,8 @@ export async function loadPluginSettings(): Promise<PluginSettings> {
 }
 
 export async function savePluginSettings(settings: PluginSettings): Promise<void> {
-  await store.set(PLUGIN_SETTINGS_KEY, settings);
-  await store.save();
+  await storeSet(PLUGIN_SETTINGS_KEY, settings);
+  await storeSave();
 }
 
 function isAutoUpdateInterval(value: unknown): value is AutoUpdateIntervalMinutes {
@@ -107,7 +178,7 @@ function isAutoUpdateInterval(value: unknown): value is AutoUpdateIntervalMinute
 }
 
 export async function loadAutoUpdateInterval(): Promise<AutoUpdateIntervalMinutes> {
-  const stored = await store.get<unknown>(AUTO_UPDATE_SETTINGS_KEY);
+  const stored = await storeGet<unknown>(AUTO_UPDATE_SETTINGS_KEY);
   if (isAutoUpdateInterval(stored)) return stored;
   return DEFAULT_AUTO_UPDATE_INTERVAL;
 }
@@ -115,8 +186,8 @@ export async function loadAutoUpdateInterval(): Promise<AutoUpdateIntervalMinute
 export async function saveAutoUpdateInterval(
   interval: AutoUpdateIntervalMinutes
 ): Promise<void> {
-  await store.set(AUTO_UPDATE_SETTINGS_KEY, interval);
-  await store.save();
+  await storeSet(AUTO_UPDATE_SETTINGS_KEY, interval);
+  await storeSave();
 }
 
 export function normalizePluginSettings(
@@ -171,14 +242,14 @@ function isThemeMode(value: unknown): value is ThemeMode {
 }
 
 export async function loadThemeMode(): Promise<ThemeMode> {
-  const stored = await store.get<unknown>(THEME_MODE_KEY);
+  const stored = await storeGet<unknown>(THEME_MODE_KEY);
   if (isThemeMode(stored)) return stored;
   return DEFAULT_THEME_MODE;
 }
 
 export async function saveThemeMode(mode: ThemeMode): Promise<void> {
-  await store.set(THEME_MODE_KEY, mode);
-  await store.save();
+  await storeSet(THEME_MODE_KEY, mode);
+  await storeSave();
 }
 
 function isDisplayMode(value: unknown): value is DisplayMode {
@@ -186,14 +257,14 @@ function isDisplayMode(value: unknown): value is DisplayMode {
 }
 
 export async function loadDisplayMode(): Promise<DisplayMode> {
-  const stored = await store.get<unknown>(DISPLAY_MODE_KEY);
+  const stored = await storeGet<unknown>(DISPLAY_MODE_KEY);
   if (isDisplayMode(stored)) return stored;
   return DEFAULT_DISPLAY_MODE;
 }
 
 export async function saveDisplayMode(mode: DisplayMode): Promise<void> {
-  await store.set(DISPLAY_MODE_KEY, mode);
-  await store.save();
+  await storeSet(DISPLAY_MODE_KEY, mode);
+  await storeSave();
 }
 
 function isResetTimerDisplayMode(value: unknown): value is ResetTimerDisplayMode {
@@ -204,14 +275,14 @@ function isResetTimerDisplayMode(value: unknown): value is ResetTimerDisplayMode
 }
 
 export async function loadResetTimerDisplayMode(): Promise<ResetTimerDisplayMode> {
-  const stored = await store.get<unknown>(RESET_TIMER_DISPLAY_MODE_KEY);
+  const stored = await storeGet<unknown>(RESET_TIMER_DISPLAY_MODE_KEY);
   if (isResetTimerDisplayMode(stored)) return stored;
   return DEFAULT_RESET_TIMER_DISPLAY_MODE;
 }
 
 export async function saveResetTimerDisplayMode(mode: ResetTimerDisplayMode): Promise<void> {
-  await store.set(RESET_TIMER_DISPLAY_MODE_KEY, mode);
-  await store.save();
+  await storeSet(RESET_TIMER_DISPLAY_MODE_KEY, mode);
+  await storeSave();
 }
 
 function isMenubarIconStyle(value: unknown): value is MenubarIconStyle {
@@ -222,14 +293,14 @@ function isMenubarIconStyle(value: unknown): value is MenubarIconStyle {
 }
 
 export async function loadMenubarIconStyle(): Promise<MenubarIconStyle> {
-  const stored = await store.get<unknown>(MENUBAR_ICON_STYLE_KEY);
+  const stored = await storeGet<unknown>(MENUBAR_ICON_STYLE_KEY);
   if (isMenubarIconStyle(stored)) return stored;
   return DEFAULT_MENUBAR_ICON_STYLE;
 }
 
 export async function saveMenubarIconStyle(style: MenubarIconStyle): Promise<void> {
-  await store.set(MENUBAR_ICON_STYLE_KEY, style);
-  await store.save();
+  await storeSet(MENUBAR_ICON_STYLE_KEY, style);
+  await storeSave();
 }
 
 type LegacyStoreWithDelete = {
@@ -237,20 +308,14 @@ type LegacyStoreWithDelete = {
 };
 
 async function deleteStoreKey(key: string): Promise<void> {
-  const maybeDelete = (store as unknown as LegacyStoreWithDelete).delete;
-  if (typeof maybeDelete === "function") {
-    await maybeDelete.call(store, key);
-    return;
-  }
-  // Fallback for store implementations without delete support.
-  await store.set(key, null);
+  await storeDelete(key);
 }
 
 export async function migrateLegacyTraySettings(): Promise<void> {
   const [legacyTrayStyle, legacyShowPercentage, currentMenubarStyle] = await Promise.all([
-    store.get<unknown>(LEGACY_TRAY_ICON_STYLE_KEY),
-    store.get<unknown>(LEGACY_TRAY_SHOW_PERCENTAGE_KEY),
-    store.get<unknown>(MENUBAR_ICON_STYLE_KEY),
+    storeGet<unknown>(LEGACY_TRAY_ICON_STYLE_KEY),
+    storeGet<unknown>(LEGACY_TRAY_SHOW_PERCENTAGE_KEY),
+    storeGet<unknown>(MENUBAR_ICON_STYLE_KEY),
   ]);
 
   const hasLegacyTrayStyle = legacyTrayStyle != null;
@@ -259,9 +324,9 @@ export async function migrateLegacyTraySettings(): Promise<void> {
 
   if (hasLegacyTrayStyle && currentMenubarStyle == null) {
     if (legacyTrayStyle === "bars") {
-      await store.set(MENUBAR_ICON_STYLE_KEY, "bars");
+      await storeSet(MENUBAR_ICON_STYLE_KEY, "bars");
     } else if (legacyTrayStyle === "circle") {
-      await store.set(MENUBAR_ICON_STYLE_KEY, "donut");
+      await storeSet(MENUBAR_ICON_STYLE_KEY, "donut");
     }
   }
 
@@ -269,7 +334,7 @@ export async function migrateLegacyTraySettings(): Promise<void> {
   if (hasLegacyTrayStyle) removals.push(deleteStoreKey(LEGACY_TRAY_ICON_STYLE_KEY));
   if (hasLegacyShowPercentage) removals.push(deleteStoreKey(LEGACY_TRAY_SHOW_PERCENTAGE_KEY));
   await Promise.all(removals);
-  await store.save();
+  await storeSave();
 }
 
 export function getEnabledPluginIds(settings: PluginSettings): string[] {
@@ -283,23 +348,23 @@ function isGlobalShortcut(value: unknown): value is GlobalShortcut {
 }
 
 export async function loadGlobalShortcut(): Promise<GlobalShortcut> {
-  const stored = await store.get<unknown>(GLOBAL_SHORTCUT_KEY);
+  const stored = await storeGet<unknown>(GLOBAL_SHORTCUT_KEY);
   if (isGlobalShortcut(stored)) return stored;
   return DEFAULT_GLOBAL_SHORTCUT;
 }
 
 export async function saveGlobalShortcut(shortcut: GlobalShortcut): Promise<void> {
-  await store.set(GLOBAL_SHORTCUT_KEY, shortcut);
-  await store.save();
+  await storeSet(GLOBAL_SHORTCUT_KEY, shortcut);
+  await storeSave();
 }
 
 export async function loadStartOnLogin(): Promise<boolean> {
-  const stored = await store.get<unknown>(START_ON_LOGIN_KEY);
+  const stored = await storeGet<unknown>(START_ON_LOGIN_KEY);
   if (typeof stored === "boolean") return stored;
   return DEFAULT_START_ON_LOGIN;
 }
 
 export async function saveStartOnLogin(value: boolean): Promise<void> {
-  await store.set(START_ON_LOGIN_KEY, value);
-  await store.save();
+  await storeSet(START_ON_LOGIN_KEY, value);
+  await storeSave();
 }

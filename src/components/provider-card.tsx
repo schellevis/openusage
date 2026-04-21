@@ -1,6 +1,5 @@
 import { Fragment, useMemo } from "react"
 import { ExternalLink, Hourglass, RefreshCw } from "lucide-react"
-import { openUrl } from "@tauri-apps/plugin-opener"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -9,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SkeletonLines } from "@/components/skeleton-lines"
 import { PluginError } from "@/components/plugin-error"
 import { useNowTicker } from "@/hooks/use-now-ticker"
+import { openExternalUrl } from "@/lib/open-external-url"
 import { REFRESH_COOLDOWN_MS, type DisplayMode, type ResetTimerDisplayMode } from "@/lib/settings"
 import type { ManifestLine, MetricLine, PluginLink } from "@/lib/plugin-types"
 import { groupLinesByType } from "@/lib/group-lines-by-type"
@@ -233,7 +233,7 @@ export function ProviderCard({
                 size="xs"
                 className="h-6 max-w-full text-[11px]"
                 onClick={() => {
-                  openUrl(link.url).catch(console.error)
+                  openExternalUrl(link.url).catch(console.error)
                 }}
               >
                 <span className="truncate">{link.label}</span>

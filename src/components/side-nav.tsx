@@ -1,6 +1,5 @@
 import { useCallback } from "react"
 import { CircleHelp, Settings } from "lucide-react"
-import { openUrl } from "@tauri-apps/plugin-opener"
 import { invoke } from "@tauri-apps/api/core"
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
 import {
@@ -29,6 +28,7 @@ function GaugeIcon({ className }: { className?: string }) {
 import { cn } from "@/lib/utils"
 import { getRelativeLuminance } from "@/lib/color"
 import { useDarkMode } from "@/hooks/use-dark-mode"
+import { openExternalUrl } from "@/lib/open-external-url"
 
 type ActiveView = "home" | "settings" | string
 
@@ -255,7 +255,7 @@ export function SideNav({
       <NavButton
         isActive={false}
         onClick={() => {
-          openUrl("https://github.com/robinebers/openusage/issues").catch(console.error)
+          openExternalUrl("https://github.com/robinebers/openusage/issues").catch(console.error)
           invoke("hide_panel").catch(console.error)
         }}
         aria-label="Help"

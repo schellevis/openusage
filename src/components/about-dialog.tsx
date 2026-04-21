@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { ChangelogDialog } from "./changelog-dialog";
 import { Button } from "@/components/ui/button";
+import { openExternalUrl } from "@/lib/open-external-url";
 
 interface AboutDialogProps {
   version: string;
@@ -16,7 +16,7 @@ function ExternalLink({
   children: React.ReactNode;
 }) {
   const handleClick = () => {
-    openUrl(href).catch(console.error);
+    openExternalUrl(href).catch(console.error);
   };
 
   return (
@@ -133,4 +133,3 @@ export function AboutDialog({ version, onClose }: AboutDialogProps) {
     </div>
   );
 }
-
