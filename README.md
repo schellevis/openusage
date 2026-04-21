@@ -10,6 +10,17 @@ See your usage at a glance from your menu bar. No digging through dashboards.
 
 The app auto-updates. Install once and you're set.
 
+## Web Interface
+
+This fork includes prep work for a Docker-deployable web shell.
+
+- static frontend image via GitHub Actions
+- runtime API base URL via `OPENUSAGE_API_BASE_URL`
+- plugin metadata loaded from upstream plugin manifests
+- usage data loaded through the existing HTTP API shape
+
+See [web interface docs](docs/web-interface.md) and [fork sync docs](docs/fork-sync.md).
+
 ## What It Does
 
 OpenUsage lives in your menu bar and shows you how much of your AI coding subscriptions you've used. Progress bars, badges, and clear labels. No mental math required.

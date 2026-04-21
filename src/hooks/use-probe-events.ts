@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from "react"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
 import type { PluginOutput } from "@/lib/plugin-types"
+import { isWebRuntimeConfigured } from "@/lib/runtime-config"
+import { loadWebProbeOutputs } from "@/lib/runtime-client"
 
 type ProbeResult = {
   batchId: string
@@ -37,33 +39,37 @@ export function useProbeEvents({ onResult, onBatchComplete }: UseProbeEventsOpti
     })
 
     const setup = async () => {
-      const resultUnlisten = await listen<ProbeResult>("probe:result", (event) => {
-        if (activeBatchIds.current.has(event.payload.batchId)) {
-          onResult(event.payload.output)
-        }
-      })
-
-      if (cancelled) {
-        resultUnlisten()
-        return
-      }
-
-      const completeUnlisten = await listen<ProbeBatchComplete>(
-        "probe:batch-complete",
-        (event) => {
-          if (activeBatchIds.current.delete(event.payload.batchId)) {
-            onBatchComplete()
+      try {
+        const resultUnlisten = await listen<ProbeResult>("probe:result", (event) => {
+          if (activeBatchIds.current.has(event.payload.batchId)) {
+            onResult(event.payload.output)
           }
+        })
+
+        if (cancelled) {
+          resultUnlisten()
+          return
         }
-      )
 
-      if (cancelled) {
-        resultUnlisten()
-        completeUnlisten()
-        return
+        const completeUnlisten = await listen<ProbeBatchComplete>(
+          "probe:batch-complete",
+          (event) => {
+            if (activeBatchIds.current.delete(event.payload.batchId)) {
+              onBatchComplete()
+            }
+          }
+        )
+
+        if (cancelled) {
+          resultUnlisten()
+          completeUnlisten()
+          return
+        }
+
+        unlisteners.current.push(resultUnlisten, completeUnlisten)
+      } catch {
+        // Web fallback: no Tauri event bridge available.
       }
-
-      unlisteners.current.push(resultUnlisten, completeUnlisten)
 
       // Signal that listeners are ready
       listenersReadyResolveRef.current?.()
@@ -100,9 +106,16 @@ export function useProbeEvents({ onResult, onBatchComplete }: UseProbeEventsOpti
       return result.pluginIds
     } catch (error) {
       activeBatchIds.current.delete(batchId)
-      throw error
+      if (!isWebRuntimeConfigured()) throw error
+
+      const outputs = await loadWebProbeOutputs(pluginIds)
+      for (const output of outputs) {
+        onResult(output)
+      }
+      onBatchComplete()
+      return outputs.map((output) => output.providerId)
     }
-  }, [])
+  }, [onBatchComplete, onResult])
 
   return { startBatch }
 }

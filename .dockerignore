@@ -1,0 +1,10 @@
+.git
+.github
+.agents
+.claude
+.codex
+.cursor
+coverage
+dist
+node_modules
+src-tauri
